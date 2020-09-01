@@ -18,13 +18,18 @@ public class Node {
 	private boolean isCurr = false;
 	private boolean isTimed;
 	private Point goalPoint;
+	private XYTimePlot[] dynamicObstacles;
+	private int distWeight = 100;
+	private int gWeight = (Config.GRID_X + Config.GRID_Y) * 2 * distWeight != 0 ? distWeight : 1;
+	private int gRaw;
 	
-	public Node(Point location, NodeState nodeState, Point goalPoint, Node originNode, boolean isTimed) {
+	public Node(Point location, NodeState nodeState, Point goalPoint, Node originNode, boolean isTimed, XYTimePlot ... dynamicObstacles) {
 		this.location = location;
 		this.nodeState = nodeState;
 		this.goalPoint = goalPoint;
 		this.originNode = originNode;
 		this.isTimed = isTimed;
+		this.dynamicObstacles = dynamicObstacles;
 		
 		if(isTimed) {
 			if(originNode == null) {
@@ -38,6 +43,7 @@ public class Node {
 		
 		f = Integer.MAX_VALUE;
 		g = Integer.MAX_VALUE;
+		gRaw = Integer.MAX_VALUE;
 		h = getDist(goalPoint);
 	}
 	
@@ -47,6 +53,22 @@ public class Node {
 		
 		return (int) Math.sqrt(xDist*xDist + yDist*yDist);
 
+	}
+	
+	public int getDistCost() {
+		if(dynamicObstacles == null || !isTimed) {
+			return 0;
+		} else {
+			int distFromOtherAgents = 0;
+			for(XYTimePlot obstacle : dynamicObstacles) {
+				distFromOtherAgents += getDist(obstacle.getLocAtTime(time));
+			}
+			System.out.println(distFromOtherAgents);
+
+			return (-distFromOtherAgents*distFromOtherAgents);
+		}
+		
+		
 	}
 	
 	public Node getOrigin() {
@@ -73,10 +95,13 @@ public class Node {
 	}
 	
 	public int getG() {
+		System.out.println("G: " + g);
 		return g;
 	}
 	
-	
+	public int getGRaw() {
+		return gRaw;
+	}
 	
 	public int getH() {
 		return h;
@@ -87,8 +112,16 @@ public class Node {
 	}
 	
 	public void setG(int g) {
-		this.g = g;
-		f = g + h;
+		gRaw = g;
+		System.out.println("G v raw: " + g);
+		System.out.println("G Weight: " + gWeight);
+		System.out.println("G (Raw): " + g * gWeight);
+
+		this.g = g*gWeight + getDistCost() * distWeight;
+		System.out.println("Dist cost: " + getDistCost() * distWeight);
+		f = g + h; //+ (getDistCost()*weight);
+//		System.out.println("F: " + f);
+//		System.out.println("Old f:" + (g+h));
 	}
 	
 	public NodeState getState() {

@@ -69,7 +69,7 @@ public class Planner {
 		if(dynamicObstacles != null) {
 			for(XYTimePlot plot : dynamicObstacles) {
 				Point pt = plot.getLocAtTime(time);
-				System.out.println("At time t=" + time + " bloced at " + pt.toString());
+//				System.out.println("At time t=" + time + " bloced at " + pt.toString());
 				grid[(int) pt.getX()][(int) pt.getY()] = 2;
 				if(pt.equals(currNode.getLocation())) {
 					grid[(int) plot.getLocAtTime(time - 1).getX()][(int) plot.getLocAtTime(time - 1).getY()] = 2;
@@ -97,7 +97,7 @@ public class Planner {
 				goalNode = currNode;
 				break;
 			}
-			System.out.println(currNode.getLocation().toString());
+//			System.out.println(currNode.getLocation().toString());
 			
 			ArrayList<Point> children = getChildren(currNode);
 			
@@ -105,16 +105,16 @@ public class Planner {
 				int childX = (int) childPos.getX();
 				int childY = (int) childPos.getY();
 				Node child = map[childX][childY];
-				System.out.println("Child X: " + childX + " Child Y: " + childY);
+//				System.out.println("Child X: " + childX + " Child Y: " + childY);
 
 				
 				if(child == null) {
 					map[childX][childY] = new Node(childPos, Node.NodeState.OPEN, goalPoint, currNode, false);
 					child = map[childX][childY];
-					map[childX][childY].setG(child.getOrigin().getG() + 1);
+					map[childX][childY].setG(child.getOrigin().getGRaw() + 1);
 					openList.insert(map[childX][childY]);
 				} else if(child.getState() != Node.NodeState.CLOSED && map[childX][childY].getG() >= currNode.getG() + child.getDist(currNode.getLocation())) {
-					map[childX][childY].setG(currNode.getG() + child.getDist(currNode.getLocation()));
+					map[childX][childY].setG(currNode.getGRaw() + child.getDist(currNode.getLocation()));
 					map[childX][childY].setOrigin(currNode);
 					openList.insert(map[childX][childY]);
 				}
@@ -148,7 +148,7 @@ public class Planner {
 		Node[][][] grid = new Node[gridX*gridY][gridX][gridY]; //Time, X, Y
 		ArrayList<Point> path = new ArrayList<Point>();
 		
-		grid[0][(int) startPoint.getX()][(int) startPoint.getY()] = new Node(startPoint, Node.NodeState.OPEN, goalPoint, null, true);
+		grid[0][(int) startPoint.getX()][(int) startPoint.getY()] = new Node(startPoint, Node.NodeState.OPEN, goalPoint, null, true, dynamicObstacles);
 		grid[0][(int) startPoint.getX()][(int) startPoint.getY()].setG(0);
 		
 		MinHeap openList = new MinHeap((int) (Math.pow(gridX, 3) * Math.pow(gridY, 2)));
@@ -166,7 +166,7 @@ public class Planner {
 				goalNode = currNode;
 				break;
 			}
-			System.out.println(currNode.getLocation());
+//			System.out.println(currNode.getLocation());
 			
 			
 			ArrayList<Point> children = getChildren(currNode);
@@ -180,16 +180,16 @@ public class Planner {
 				} else {
 					break;
 				}
-				System.out.println("Child X: " + childX + " Child Y: " + childY);
+//				System.out.println("Child X: " + childX + " Child Y: " + childY);
 
 				
 				if(child == null) {
-					grid[time+1][childX][childY] = new Node(childPos, Node.NodeState.OPEN, goalPoint, currNode, true);
+					grid[time+1][childX][childY] = new Node(childPos, Node.NodeState.OPEN, goalPoint, currNode, true, dynamicObstacles);
 					child = grid[time+1][childX][childY];
-					grid[time+1][childX][childY].setG(child.getOrigin().getG() + 1);
+					grid[time+1][childX][childY].setG(child.getOrigin().getGRaw() + 1);
 					openList.insert(grid[time+1][childX][childY]);
 				} else if(child.getState() != Node.NodeState.CLOSED && grid[time+1][childX][childY].getG() >= currNode.getG() + child.getDist(currNode.getLocation())) {
-					grid[time+1][childX][childY].setG(currNode.getG() + child.getDist(currNode.getLocation()));
+					grid[time+1][childX][childY].setG(currNode.getGRaw() + child.getDist(currNode.getLocation()));
 					grid[time+1][childX][childY].setOrigin(currNode);
 					openList.insert(grid[time+1][childX][childY]);
 				}
@@ -200,9 +200,92 @@ public class Planner {
 
 		if(goalNode == null) {
 			System.out.println("Path not found");
+			System.out.println("Open List Size: " + openList.size());
 			path.add(startPoint);
 			return new XYTimePlot(path);
 		} 
+		
+		path.add(goalPoint);
+
+		if(dynamicObstacles != null) {
+			int problemTime = -1;
+			XYTimePlot problemObstacle = null;
+			for(XYTimePlot o : dynamicObstacles) {
+				for(int t = 0; t < o.getPath().size(); t++) {
+					if(o.getPath().get(t).equals(goalPoint)) {
+						problemTime = t;
+						problemObstacle = o;
+					}
+				}
+			}
+			if(problemTime > -1 && goalNode.getTime() < problemObstacle.getPlotSize()) {
+				for(int i = 0; i < 4; i++) {
+					if(i == 0) {
+						Point pt = new Point((int) goalPoint.getX() - 1, (int) goalPoint.getY());
+						boolean notPresent = true;
+						for(Point obstaclePt : problemObstacle.getPath()) {
+							if (obstaclePt.equals(pt)) {
+								notPresent = false;
+								break;
+							}
+						}
+						if(notPresent) {
+							for(int j = 0; j < problemObstacle.getPlotSize() - goalNode.getTime(); j++) {
+								path.add(0, pt);
+							}
+							break;
+						}
+					} else if(i == 1) {
+						Point pt = new Point((int) goalPoint.getX() + 1, (int) goalPoint.getY());
+						boolean notPresent = true;
+						for(Point obstaclePt : problemObstacle.getPath()) {
+							if (obstaclePt.equals(pt)) {
+								notPresent = false;
+								break;
+							}
+						}
+						if(notPresent) {
+							for(int j = 0; j < problemObstacle.getPlotSize() - goalNode.getTime(); j++) {
+								path.add(0, pt);
+							}
+							break;
+						}
+					} else if(i == 2) {
+						Point pt = new Point((int) goalPoint.getX(), (int) goalPoint.getY() - 1);
+						boolean notPresent = true;
+						for(Point obstaclePt : problemObstacle.getPath()) {
+							if (obstaclePt.equals(pt)) {
+								notPresent = false;
+								break;
+							}
+						}
+						if(notPresent) {
+							for(int j = 0; j < problemObstacle.getPlotSize() - goalNode.getTime(); j++) {
+								path.add(0, pt);
+							}
+							break;
+						}
+					} else {
+						Point pt = new Point((int) goalPoint.getX(), (int) goalPoint.getY() + 1);
+						boolean notPresent = true;
+						for(Point obstaclePt : problemObstacle.getPath()) {
+							if (obstaclePt.equals(pt)) {
+								notPresent = false;
+								break;
+							}
+						}
+						if(notPresent) {
+							for(int j = 0; j < problemObstacle.getPlotSize() - goalNode.getTime(); j++) {
+								path.add(0, pt);
+							}
+							break;
+						}
+					}
+				}
+			
+				path.add(0, goalPoint);
+			}
+		}
 		
 		path.add(goalPoint);
 
